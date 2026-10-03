@@ -1,5 +1,17 @@
-import { Component, OnDestroy } from '@angular/core';
+import {
+  Component,
+  OnDestroy,
+  OnInit,
+  Signal,
+  WritableSignal,
+  inject,
+  signal,
+} from '@angular/core';
+
 import { CommonModule } from '@angular/common';
+
+import { CrimesService, ResultadoCrime } from './service/crimes.service';
+
 import { DateInterface } from './types/date';
 
 @Component({
@@ -7,40 +19,50 @@ import { DateInterface } from './types/date';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './app.component.html',
-  styleUrl: './app.component.scss'
+  styleUrl: './app.component.scss',
 })
-export class AppComponent implements OnDestroy {
+export class AppComponent implements OnInit, OnDestroy {
+  private CrimesService = inject(CrimesService);
 
   // ----------------------------------------
   // Estado da aplicação
   // ----------------------------------------
 
   cameraCount = 128;
-  occurrenceCount = 3;
+
+  occurrenceCount = 0;
+
   currentTime = '';
 
   selectedFile: File | null = null;
+
   videoPreviewUrl: string | null = null;
+
   frameDataUrl: string | null = null;
 
   isAnalyzing = false;
+
   detected = false;
+
   hasResult = false;
+
   videoError = false;
+
+  accuracy = 0;
+
+  errorMessage = '';
 
   private clockInterval?: ReturnType<typeof setInterval>;
 
-  readonly maxChartValue = 12;
+  get maxChartValue(): number {
+    if (!this.chartData().length) {
+      return 1;
+    }
 
-  readonly chartData: DateInterface[] = [
-    { day: 'Ter', value: 4 },
-    { day: 'Qua', value: 6 },
-    { day: 'Qui', value: 3 },
-    { day: 'Sex', value: 7 },
-    { day: 'Sáb', value: 9 },
-    { day: 'Dom', value: 5 },
-    { day: 'Seg', value: 4, highlight: true }
-  ];
+    return Math.max(...this.chartData().map((item) => item.value), 1);
+  }
+
+  chartData: WritableSignal<DateInterface[]> = signal([]);
 
   constructor() {
     this.updateClock();
@@ -50,35 +72,79 @@ export class AppComponent implements OnDestroy {
     }, 30000);
   }
 
+  ngOnInit(): void {
+    this.carregarDados();
+  }
+
+  // ----------------------------------------
+  // CARREGAMENTO DOS DADOS
+  // ----------------------------------------
+
+  private carregarDados(): void {
+    this.carregarOcorrencias();
+    this.carregarGrafico();
+  }
+
+  private carregarOcorrencias(): void {
+    this.CrimesService.listarTodosCrimes().subscribe({
+      next: (crimes: ResultadoCrime[]) => {
+        this.occurrenceCount = crimes.length;
+      },
+
+      error: (error) => {
+        console.error('Erro ao carregar ocorrências:', error);
+      },
+    });
+  }
+
+  private carregarGrafico(): void {
+    this.CrimesService.listarCrimesMes().subscribe({
+      next: (dados: any[]) => {
+        console.log('1 - API:', dados);
+
+        this.chartData.set(
+          dados.map((item: any[]) => ({
+            day: item[0],
+            value: Number(item[1]),
+            highlight: false,
+          })),
+        );
+
+        console.log('2 - chartData:', this.chartData());
+        console.log('3 - length:', this.chartData().length);
+      },
+
+      error: (error) => {
+        console.error('Erro ao carregar gráfico:', error);
+        this.chartData.set([]);
+      },
+    });
+  }
+
+  // ----------------------------------------
+  // RELÓGIO
+  // ----------------------------------------
+
   private updateClock(): void {
     const now = new Date();
 
     const hours = String(now.getHours()).padStart(2, '0');
+
     const minutes = String(now.getMinutes()).padStart(2, '0');
 
     this.currentTime = `${hours}:${minutes}`;
   }
 
-
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
+
     const file = input.files?.[0];
 
     if (!file) {
       return;
     }
 
-    this.selectedFile = file;
-    this.videoError = false;
-
-    this.hasResult = false;
-    this.frameDataUrl = null;
-
-    if (this.videoPreviewUrl) {
-      URL.revokeObjectURL(this.videoPreviewUrl);
-    }
-
-    this.videoPreviewUrl = URL.createObjectURL(file);
+    this.setSelectedFile(file);
   }
 
   onDragOver(event: DragEvent): void {
@@ -95,13 +161,30 @@ export class AppComponent implements OnDestroy {
     }
 
     if (!file.type.startsWith('video/')) {
+      this.videoError = true;
+
+      this.errorMessage = 'Selecione um arquivo de vídeo válido.';
+
       return;
     }
 
+    this.setSelectedFile(file);
+  }
+
+  private setSelectedFile(file: File): void {
     this.selectedFile = file;
+
     this.videoError = false;
+
+    this.errorMessage = '';
+
     this.hasResult = false;
+
     this.frameDataUrl = null;
+
+    this.detected = false;
+
+    this.accuracy = 0;
 
     if (this.videoPreviewUrl) {
       URL.revokeObjectURL(this.videoPreviewUrl);
@@ -110,6 +193,25 @@ export class AppComponent implements OnDestroy {
     this.videoPreviewUrl = URL.createObjectURL(file);
   }
 
+  // ----------------------------------------
+  // ANÁLISE
+  // ----------------------------------------
+
+  private fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        resolve(reader.result as string);
+      };
+
+      reader.onerror = () => {
+        reject(new Error('Não foi possível carregar a imagem.'));
+      };
+
+      reader.readAsDataURL(file);
+    });
+  }
 
   async analyzeVideo(): Promise<void> {
     if (!this.selectedFile || this.isAnalyzing) {
@@ -117,45 +219,124 @@ export class AppComponent implements OnDestroy {
     }
 
     this.isAnalyzing = true;
+
     this.hasResult = false;
     this.videoError = false;
+    this.errorMessage = '';
 
     try {
-      const frame = await this.extractVideoFrame(this.selectedFile);
+      /*
+       * A imagem selecionada já é um File.
+       * Não precisamos extrair frame nem converter Base64.
+       */
 
-      await this.delay(900);
+      const imageFile = this.selectedFile;
 
-      this.detected = Math.random() < 0.5;
+      console.log('Imagem enviada:', imageFile);
 
-      if (this.detected) {
-        this.occurrenceCount++;
-      }
+      /*
+       * Mostra a imagem selecionada no resultado
+       */
+      this.frameDataUrl = await this.fileToDataUrl(imageFile);
 
-      this.frameDataUrl = frame;
-      this.hasResult = true;
+      /*
+       * Envia a imagem diretamente para o backend
+       */
+      this.CrimesService.enviarImagemCrime(imageFile).subscribe({
+        next: (response: ResultadoCrime) => {
+          console.log('Resposta do backend:', response);
 
+          /*
+           * Resultado da IA/backend
+           */
+          this.detected = response.resultado;
+
+          /*
+           * Confiança da análise
+           */
+          this.accuracy = response.accuracy;
+
+          this.hasResult = true;
+
+          this.isAnalyzing = false;
+
+          /*
+           * Atualiza os dados
+           */
+          this.carregarOcorrencias();
+
+          this.carregarGrafico();
+        },
+
+        error: (error) => {
+          console.error('Erro ao analisar imagem:', error);
+
+          this.videoError = true;
+
+          this.hasResult = false;
+
+          this.isAnalyzing = false;
+
+          this.errorMessage = this.obterMensagemErro(error);
+        },
+      });
     } catch (error) {
-      console.error('Erro ao analisar vídeo:', error);
+      console.error('Erro ao processar imagem:', error);
+
       this.videoError = true;
-    } finally {
+
+      this.hasResult = false;
+
       this.isAnalyzing = false;
+
+      this.errorMessage = 'Não foi possível processar a imagem.';
     }
   }
+
+  // ----------------------------------------
+  // CONVERTER BASE64 → FILE
+  // ----------------------------------------
+
+  private dataUrlToFile(dataUrl: string, fileName: string): File {
+    const parts = dataUrl.split(',');
+
+    const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+
+    const binary = atob(parts[1]);
+
+    const array = new Uint8Array(binary.length);
+
+    for (let i = 0; i < binary.length; i++) {
+      array[i] = binary.charCodeAt(i);
+    }
+
+    return new File([array], fileName, {
+      type: mime,
+    });
+  }
+
+  // ----------------------------------------
+  // EXTRAIR FRAME DO VÍDEO
+  // ----------------------------------------
 
   private extractVideoFrame(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const videoUrl = URL.createObjectURL(file);
+
       const video = document.createElement('video');
 
       video.src = videoUrl;
+
       video.muted = true;
+
       video.playsInline = true;
 
-      video.addEventListener('loadeddata', () => {
-        const seekTime = Math.min(
-          1.5,
-          (video.duration || 3) / 2
-        );
+      video.preload = 'metadata';
+
+      video.addEventListener('loadedmetadata', () => {
+        const duration = video.duration || 3;
+
+        const seekTime = Math.min(1.5, duration / 2);
 
         video.currentTime = seekTime;
       });
@@ -165,6 +346,7 @@ export class AppComponent implements OnDestroy {
           const canvas = document.createElement('canvas');
 
           canvas.width = video.videoWidth || 640;
+
           canvas.height = video.videoHeight || 360;
 
           const context = canvas.getContext('2d');
@@ -173,47 +355,62 @@ export class AppComponent implements OnDestroy {
             throw new Error('Canvas não suportado.');
           }
 
-          context.drawImage(
-            video,
-            0,
-            0,
-            canvas.width,
-            canvas.height
-          );
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-          const frame = canvas.toDataURL(
-            'image/jpeg',
-            0.85
-          );
+          const frame = canvas.toDataURL('image/jpeg', 0.85);
 
           URL.revokeObjectURL(videoUrl);
 
           resolve(frame);
         } catch (error) {
           URL.revokeObjectURL(videoUrl);
+
           reject(error);
         }
       });
 
       video.addEventListener('error', () => {
         URL.revokeObjectURL(videoUrl);
+
         reject(new Error('Não foi possível ler o vídeo.'));
       });
     });
   }
 
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  // ----------------------------------------
+  // MENSAGEM DE ERRO
+  // ----------------------------------------
+
+  private obterMensagemErro(error: any): string {
+    if (error?.status === 0) {
+      return 'Não foi possível conectar ao servidor.';
+    }
+
+    if (error?.status === 400) {
+      return 'A imagem enviada é inválida.';
+    }
+
+    if (error?.status === 413) {
+      return 'A imagem enviada é muito grande.';
+    }
+
+    if (error?.status >= 500) {
+      return 'Ocorreu um erro no servidor durante a análise.';
+    }
+
+    return error?.error?.message || error?.message || 'Não foi possível analisar a imagem.';
   }
+
+  // ----------------------------------------
+  // UTILITÁRIOS
+  // ----------------------------------------
 
   getFileSize(): string {
     if (!this.selectedFile) {
       return '';
     }
 
-    return `${(
-      this.selectedFile.size / (1024 * 1024)
-    ).toFixed(1)} MB`;
+    return `${(this.selectedFile.size / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   getFileName(): string {
@@ -223,13 +420,15 @@ export class AppComponent implements OnDestroy {
 
     const name = this.selectedFile.name;
 
-    return name.length > 34
-      ? `${name.slice(0, 31)}…`
-      : name;
+    return name.length > 34 ? `${name.slice(0, 31)}…` : name;
   }
 
   getBarHeight(value: number): string {
     return `${(value / this.maxChartValue) * 100}%`;
+  }
+
+  getAccuracy(): string {
+    return (this.accuracy).toFixed(2) + '%';
   }
 
   ngOnDestroy(): void {
