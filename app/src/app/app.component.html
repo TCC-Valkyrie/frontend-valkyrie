@@ -1,0 +1,376 @@
+<div class="wrap">
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="white"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+      </div>
+
+      <div>
+        <h1>Valkyrie</h1>
+
+        <p>Monitoramento inteligente de câmeras públicas</p>
+      </div>
+    </div>
+
+    <div class="status-pill">
+      <span class="dot"></span>
+
+      <span> {{ cameraCount }} câmeras ativas · {{ currentTime }} </span>
+    </div>
+  </header>
+  <!-- PAINÉIS PRINCIPAIS -->
+  <section class="panels">
+    <!-- ======================================== -->
+    <!-- ENVIO DE VÍDEO -->
+    <!-- ======================================== -->
+
+    <div class="panel upload-panel">
+      <div class="panel-title">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M23 7l-7 5 7 5V7z" />
+
+          <rect x="1" y="5" width="15" height="14" rx="2" />
+        </svg>
+
+        <span> Envio de vídeo </span>
+      </div>
+
+      <!-- DROPZONE -->
+
+      <label
+        class="dropzone"
+        [class.has-file]="selectedFile"
+        for="videoInput"
+        (dragover)="onDragOver($event)"
+        (drop)="onDrop($event)"
+      >
+        <div class="dropzone-icon">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+
+            <polyline points="17 8 12 3 7 8" />
+
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+        </div>
+
+        <strong>
+          {{ selectedFile ? getFileName() : 'Clique para enviar um vídeo' }}
+        </strong>
+
+        <span>
+          {{
+            selectedFile
+              ? getFileSize() + ' — pronto para analisar'
+              : 'MP4, MOV ou WebM — um quadro será enviado para análise'
+          }}
+        </span>
+      </label>
+
+      <!-- INPUT -->
+
+      <input id="videoInput" class="file-input" type="file" (change)="onFileSelected($event)" />
+
+      <!-- BOTÃO ANALISAR -->
+
+      <button
+        type="button"
+        class="analyze-btn"
+        [disabled]="!selectedFile || isAnalyzing"
+        (click)="analyzeVideo()"
+      >
+        <!-- ÍCONE NORMAL -->
+
+        <svg
+          *ngIf="!isAnalyzing"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M2 12h4l3 9 4-18 3 9h6" />
+        </svg>
+
+        <!-- SPINNER -->
+
+        <div *ngIf="isAnalyzing" class="button-spinner"></div>
+
+        <span>
+          {{ isAnalyzing ? 'Analisando...' : 'Analisar imagem/video' }}
+        </span>
+      </button>
+    </div>
+
+    <!-- ======================================== -->
+    <!-- RESULTADO -->
+    <!-- ======================================== -->
+
+    <div class="panel result-panel">
+      <div class="panel-title result-title">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+          />
+
+          <circle cx="12" cy="13" r="4" />
+        </svg>
+
+        <span> Resultado da análise </span>
+      </div>
+
+      <div class="result-area">
+        <!-- ======================================== -->
+        <!-- CARREGANDO -->
+        <!-- ======================================== -->
+
+        <div class="result-loading" *ngIf="isAnalyzing">
+          <div class="spinner"></div>
+
+          <p>Extraindo quadro e enviando para análise…</p>
+
+          <small> Aguarde enquanto o servidor processa a imagem. </small>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- ERRO -->
+        <!-- ======================================== -->
+
+        <div class="result-empty error-state" *ngIf="videoError && !isAnalyzing">
+          <div class="icon">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="12" y1="8" x2="12" y2="12" />
+
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+
+              <circle cx="12" cy="12" r="10" />
+            </svg>
+          </div>
+
+          <p>
+            {{ errorMessage || 'Não foi possível processar este vídeo.' }}
+          </p>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- RESULTADO DA ANÁLISE -->
+        <!-- ======================================== -->
+
+        <div class="result-content" *ngIf="hasResult && !isAnalyzing && !videoError">
+          <!-- FRAME -->
+
+          <div class="result-frame">
+            @if (isImage()) {
+              <img [src]="frameDataUrl" alt="Quadro extraído do vídeo enviado" />
+            } @else {
+              <video controls width="100%">
+                <source [src]="frameDataUrl" [type]="typeImage()" />
+              </video>
+            }
+
+            <!-- BADGE -->
+
+            <span class="result-badge" [class.alert]="detected" [class.clear]="!detected">
+              <span class="dot-badge"></span>
+
+              {{ detected ? 'Ocorrência detectada' : 'Nenhuma ocorrência detectada' }}
+            </span>
+          </div>
+
+          <!-- INFORMAÇÕES DO RESULTADO -->
+
+          <div class="result-info">
+            <!-- DESCRIÇÃO -->
+
+            <p class="result-caption">
+              {{
+                detected
+                  ? 'A análise identificou uma possível ocorrência no quadro enviado.'
+                  : 'A análise não identificou uma ocorrência no quadro enviado.'
+              }}
+            </p>
+
+            <!-- ACCURACY -->
+
+            <div class="accuracy">
+              <div class="accuracy-header">
+                <span> Confiança da análise </span>
+
+                <strong>
+                  {{ getAccuracy() }}
+                </strong>
+              </div>
+
+              <div class="accuracy-bar">
+                <div class="accuracy-progress" [style.width]="accuracy * 100 + '%'"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ======================================== -->
+        <!-- ESTADO INICIAL -->
+        <!-- ======================================== -->
+
+        <div class="result-empty" *ngIf="!hasResult && !isAnalyzing && !videoError">
+          <div class="icon">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+          </div>
+
+          <p>
+            Envie um vídeo e clique em "Analisar" para enviar um quadro ao servidor e ver o
+            resultado.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- ======================================== -->
+  <!-- ESTATÍSTICAS -->
+  <!-- ======================================== -->
+  <section class="stats">
+    <!-- CÂMERAS -->
+
+    <div class="stat-card">
+      <div class="stat-value">
+        {{ cameraCount }}
+      </div>
+
+      <div class="stat-label">Câmeras ativas na rede</div>
+    </div>
+
+    <!-- OCORRÊNCIAS -->
+
+    <div class="stat-card">
+      <div class="stat-value gold">
+        {{ occurrenceCount }}
+      </div>
+
+      <div class="stat-label">Ocorrências registradas</div>
+    </div>
+
+    <!-- TEMPO -->
+
+    <div class="stat-card">
+      <div class="stat-value">2min14s</div>
+
+      <div class="stat-label">Tempo médio de resposta</div>
+    </div>
+  </section>
+  <!-- ======================================== -->
+  <!-- GRÁFICO -->
+  <!-- ======================================== -->
+  <section class="chart-panel">
+    <div class="chart-header">
+      <h3>Ocorrências por mês</h3>
+
+      <span> dados da API </span>
+    </div>
+
+    <div class="chart">
+      <!-- EIXO Y -->
+
+      <div class="chart-ylabels">
+        <span>{{ maxChartValue }}</span>
+
+        <span>{{ (maxChartValue * 0.75).toFixed(0) }}</span>
+
+        <span>{{ (maxChartValue * 0.5).toFixed(0) }}</span>
+
+        <span>{{ (maxChartValue * 0.25).toFixed(0) }}</span>
+
+        <span>0</span>
+      </div>
+
+      <!-- GRID -->
+
+      <div class="chart-gridlines">
+        <div class="gline"></div>
+
+        <div class="gline"></div>
+
+        <div class="gline"></div>
+
+        <div class="gline"></div>
+
+        <div class="gline last"></div>
+      </div>
+
+      <!-- BARRAS -->
+
+      <div class="chart-bars">
+        <div class="bar-col" *ngFor="let item of chartData()">
+          <div
+            class="bar"
+            [class.highlight]="item.highlight"
+            [style.height]="getBarHeight(item.value)"
+            [title]="item.day + ': ' + item.value"
+          ></div>
+
+          <div class="bar-label">
+            {{ item.day }}
+          </div>
+        </div>
+
+        <!-- SEM DADOS -->
+
+        <div class="chart-no-data" *ngIf="chartData().length === 0">Nenhum dado disponível.</div>
+      </div>
+    </div>
+  </section>
+  <!-- ======================================== -->
+  <!-- FOOTER -->
+  <!-- ======================================== -->
+  <footer class="footer-note">
+    O vídeo é processado no navegador para extração de um quadro. O quadro selecionado é enviado ao
+    servidor para análise. Os resultados e as ocorrências são carregados diretamente da API.
+  </footer>
+</div>
