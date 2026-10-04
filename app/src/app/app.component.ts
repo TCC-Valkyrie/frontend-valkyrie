@@ -52,6 +52,9 @@ export class AppComponent implements OnInit, OnDestroy {
 
   errorMessage = '';
 
+  isImage: WritableSignal<boolean> = signal(false);
+  typeImage: WritableSignal<string> = signal("")
+
   private clockInterval?: ReturnType<typeof setInterval>;
 
   get maxChartValue(): number {
@@ -234,6 +237,8 @@ export class AppComponent implements OnInit, OnDestroy {
 
       console.log('Imagem enviada:', imageFile);
 
+      this.isImage.set(!imageFile.type.startsWith("video/"))
+      this.typeImage.set(imageFile.type)
       /*
        * Mostra a imagem selecionada no resultado
        */
