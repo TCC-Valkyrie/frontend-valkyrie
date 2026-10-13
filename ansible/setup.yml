@@ -58,6 +58,13 @@
             production: true,
             apiUrl: '{{ url_backend }}',
           };
+  
+    - name: Ajustar permissões do frontend
+      ansible.builtin.file:
+        path: "{{ frontend_dir }}"
+        owner: ubuntu
+        group: ubuntu
+        recurse: yes
 
     - name: Compilar frontend Angular
       ansible.builtin.command:
