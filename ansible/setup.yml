@@ -49,7 +49,7 @@
 
     - name: Configurar ambiente de produção
       ansible.builtin.copy:
-        dest: "{{ frontend_dir }}/app/environments/environment.ts"
+        dest: "{{ frontend_dir }}/src/environments/environment.ts"
         mode: "0644"
         owner: ubuntu
         group: ubuntu
