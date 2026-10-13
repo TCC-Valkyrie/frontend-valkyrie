@@ -87,7 +87,7 @@
 
     - name: Iniciar frontend Angular
       become_user: ubuntu
-      shell: |
-        nohup npm start > /dev/null 2>&1 &
+      ansible.builtin.shell: |
+        nohup npm start > /tmp/angular.log 2>&1 </dev/null &
       args:
         chdir: "{{ frontend_dir }}"
