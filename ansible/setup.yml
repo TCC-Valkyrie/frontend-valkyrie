@@ -72,10 +72,11 @@
         chdir: "{{ frontend_dir }}"
       become_user: ubuntu
 
-    - name: Desativar analytics do Angular globalmente
+    - name: Desativar analytics do Angular
       become_user: ubuntu
       ansible.builtin.command:
-        cmd: npx --yes @angular/cli analytics off
+        cmd: npx ng analytics off
+        chdir: "{{ frontend_dir }}"
       changed_when: false
 
     - name: Iniciar frontend Angular
