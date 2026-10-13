@@ -1,0 +1,56 @@
+name: Deploy java e python
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout do código
+      uses: actions/checkout@v3
+
+    - name: Configurar credenciais AWS 
+      uses: aws-actions/configure-aws-credentials@v4 
+      with: 
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }} 
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }} 
+        aws-region: ${{ secrets.AWS_REGION }} 
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }} 
+
+    - name: Instala Ansible
+      run: sudo apt-get update && sudo apt-get install -y ansible
+
+    - name: Adiciona chave SSH para EC2
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/chave-tcc.pem
+        chmod 400 ~/.ssh/chave-tcc.pem
+
+    - name: Debug EC2_HOST value 
+      run: echo "EC2_HOST is ${{ secrets.EC2_HOST }}"
+
+    - name: Substitui variável no inventory
+      run: |
+        sed "s/{{ ec2_host }}/${{ secrets.EC2_HOST }}/" ansible/inventory > ansible/inventory.tmp
+        mv ansible/inventory.tmp ansible/inventory
+        
+    - name: Adiciona chave SSH ao known_hosts
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+              
+    - name: Verificar conteúdo do inventory
+      run: |
+        cat ansible/inventory
+
+    - name: Testar conexão SSH
+      run: |
+        ssh -i ~/.ssh/chave-tcc.pem ubuntu@${{ secrets.EC2_HOST }} "echo 'Conexão bem-sucedida'"
+
+    - name: Executa Ansible Playbook
+      run: |
+        ansible-playbook -v -i ansible/inventory ansible/setup.yml \
+          --extra-vars "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} AWS_DEFAULT_REGION=${{ secrets.AWS_REGION }} AWS_SESSION_TOKEN=${{ secrets.AWS_SESSION_TOKEN }} "
+

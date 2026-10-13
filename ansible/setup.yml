@@ -1,0 +1,66 @@
+- name: Instalar dependências e executar frontend
+  hosts: all
+  become: yes
+
+  vars:
+    app_dir: /front
+    url_backend: "http://54.198.94.137:8080/file"
+    frontend_dir: "{{ app_dir }}/app"
+
+  tasks:
+    - name: Atualizar cache do apt
+      ansible.builtin.apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Instalar dependências básicas
+      ansible.builtin.apt:
+        name:
+          - git
+          - curl
+          - ca-certificates
+        state: present
+
+    - name: Adicionar repositório NodeSource para Node.js 22.x
+      ansible.builtin.shell: |
+        curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+
+    - name: Instalar Node.js
+      ansible.builtin.apt:
+        name: nodejs
+        state: present
+        update_cache: yes
+
+    - name: Clonar ou atualizar repositório
+      ansible.builtin.git:
+        repo: "https://github.com/TCC-Valkyrie/frontend-valkyrie.git"
+        dest: "{{ app_dir }}"
+        version: "{{ github_ref | default('main') }}"
+        force: yes
+
+    - name: Instalar dependências Node.js
+      ansible.builtin.command:
+        cmd: npm install
+        chdir: "{{ frontend_dir }}"
+      environment:
+        npm_config_cache: /var/tmp/npm-cache
+
+    - name: Configurar ambiente de produção
+      ansible.builtin.copy:
+        dest: "{{ frontend_dir }}/src/environments/environment.ts"
+        mode: "0644"
+        owner: ubuntu
+        group: ubuntu
+        content: |
+          export const environment = {
+            production: true,
+            apiUrl: '{{ url_backend }}',
+          };
+
+    - name: Compilar frontend Angular
+      ansible.builtin.command:
+        cmd: npm run build
+        chdir: "{{ frontend_dir }}"
+      become_user: ubuntu
