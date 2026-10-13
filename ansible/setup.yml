@@ -85,9 +85,11 @@
         chdir: "{{ frontend_dir }}"
       changed_when: false
 
-    - name: Iniciar frontend Angular
+    - name: Iniciar frontend Angular para diagnóstico
       become_user: ubuntu
       ansible.builtin.shell: |
-        nohup npm start > /tmp/angular.log 2>&1 </dev/null &
+        npm start >> /tmp/angular.log 2>&1
       args:
         chdir: "{{ frontend_dir }}"
+      async: 30
+      poll: 0
