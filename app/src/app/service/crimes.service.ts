@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../environment/environment';
 
 export interface ResultadoCrime {
   id?: number;
@@ -20,8 +21,8 @@ export interface CrimeMes {
 export class CrimesService {
   private http = inject(HttpClient);
 
-  private apiUrl = 'http://localhost:8080/file';
-
+ private apiUrl = environment.apiUrl;
+ 
   listarCrimesMes(): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/by-month`);
   }
