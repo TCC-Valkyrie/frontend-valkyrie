@@ -33,6 +33,12 @@
         state: present
         update_cache: yes
 
+    - name: Encerrar processos do frontend Angular
+      ansible.builtin.shell: |
+        pkill -f '[n]g serve' || true
+        pkill -f '[n]pm start' || true
+      become_user: ubuntu
+
     - name: Clonar ou atualizar repositório
       ansible.builtin.git:
         repo: "https://github.com/TCC-Valkyrie/frontend-valkyrie.git"
