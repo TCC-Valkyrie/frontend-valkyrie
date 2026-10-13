@@ -71,3 +71,17 @@
         cmd: npm run build
         chdir: "{{ frontend_dir }}"
       become_user: ubuntu
+
+    - name: Desativar analytics do Angular globalmente
+      become_user: ubuntu
+      ansible.builtin.command:
+        cmd: npx --yes @angular/cli analytics off
+      changed_when: false
+
+    - name: Iniciar frontend Angular
+      become_user: ubuntu
+      ansible.builtin.shell: |
+        nohup npm start \
+          > /tmp/frontend.log 2>&1 &
+      args:
+        chdir: "{{ frontend_dir }}"
