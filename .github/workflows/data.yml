@@ -25,8 +25,8 @@ jobs:
     - name: Adiciona chave SSH para EC2
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/chave-tcc.pem
-        chmod 400 ~/.ssh/chave-tcc.pem
+        echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/public_key_valkyrie.pem
+        chmod 400 ~/.ssh/public_key_valkyrie.pem
 
     - name: Debug EC2_HOST value 
       run: echo "EC2_HOST is ${{ secrets.EC2_HOST }}"
@@ -47,7 +47,7 @@ jobs:
 
     - name: Testar conexão SSH
       run: |
-        ssh -i ~/.ssh/chave-tcc.pem ubuntu@${{ secrets.EC2_HOST }} "echo 'Conexão bem-sucedida'"
+        ssh -i ~/.ssh/public_key_valkyrie.pem ubuntu@${{ secrets.EC2_HOST }} "echo 'Conexão bem-sucedida'"
 
     - name: Executa Ansible Playbook
       run: |
