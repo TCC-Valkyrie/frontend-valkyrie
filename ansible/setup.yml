@@ -4,7 +4,7 @@
 
   vars:
     app_dir: /front
-    url_backend: "http://54.198.94.137:8080/file"
+    url_backend: "http://50.19.53.35:8080/file"
     frontend_dir: "{{ app_dir }}/app"
 
   tasks:
