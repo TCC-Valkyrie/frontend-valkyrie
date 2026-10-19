@@ -4,7 +4,7 @@
 
   vars:
     app_dir: /front
-    url_backend: "http://50.19.53.35:8080/file"
+    url_backend: "http://13.217.222.138:8080/file"
     frontend_dir: "{{ app_dir }}/app"
 
   tasks:
@@ -64,7 +64,7 @@
             production: true,
             apiUrl: '{{ url_backend }}',
           };
-  
+
     - name: Ajustar permissões do frontend
       ansible.builtin.file:
         path: "{{ frontend_dir }}"
