@@ -25,15 +25,17 @@ jobs:
     - name: Adiciona chave SSH para EC2
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/public_key_valkyrie.pem
-        chmod 400 ~/.ssh/public_key_valkyrie.pem
+        echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/${{ secrets.NOME_PEM }}.pem
+        chmod 400 ~/.ssh/${{ secrets.NOME_PEM }}.pem
 
     - name: Debug EC2_HOST value 
       run: echo "EC2_HOST is ${{ secrets.EC2_HOST }}"
 
-    - name: Substitui variável no inventory
+    - name: Substitui variáveis no inventory
       run: |
-        sed "s/{{ ec2_host }}/${{ secrets.EC2_HOST }}/" ansible/inventory > ansible/inventory.tmp
+        sed -e "s|{{ ec2_host }}|${{ secrets.EC2_HOST }}|g" \
+            -e "s|{{ nome_pem }}|${{ secrets.NOME_PEM }}|g" \
+            ansible/inventory > ansible/inventory.tmp
         mv ansible/inventory.tmp ansible/inventory
         
     - name: Adiciona chave SSH ao known_hosts
