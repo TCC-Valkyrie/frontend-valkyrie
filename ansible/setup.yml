@@ -129,7 +129,7 @@
         mode: "0644"
         content: |
           server {
-              listen 80 default_server;
+              listen 4200 default_server;
               server_name _;
 
               root /var/www/angular;
