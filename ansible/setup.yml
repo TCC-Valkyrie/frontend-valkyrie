@@ -53,6 +53,12 @@
       environment:
         npm_config_cache: /var/tmp/npm-cache
 
+    - name: Instalar Nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: yes
+
     - name: Configurar ambiente de produção
       ansible.builtin.copy:
         dest: "{{ frontend_dir }}/src/environments/environment.ts"
@@ -85,11 +91,82 @@
         chdir: "{{ frontend_dir }}"
       changed_when: false
 
-    - name: Iniciar frontend Angular para diagnóstico
-      become_user: ubuntu
-      ansible.builtin.shell: |
-        npm start >> /tmp/angular.log 2>&1
-      args:
-        chdir: "{{ frontend_dir }}"
-      async: 30
-      poll: 0
+    - name: Localizar index.html compilado
+      ansible.builtin.find:
+        paths: "{{ frontend_dir }}/dist"
+        patterns: index.html
+        recurse: yes
+        file_type: file
+      register: angular_index
+
+    - name: Validar build do Angular
+      ansible.builtin.assert:
+        that:
+          - angular_index.matched | int > 0
+        fail_msg: "Build Angular não gerou index.html em dist."
+
+    - name: Criar diretório de publicação
+      ansible.builtin.file:
+        path: /var/www/angular
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+
+    - name: Publicar arquivos do Angular
+      ansible.builtin.copy:
+        src: "{{ angular_index.files[0].path | dirname }}/"
+        dest: /var/www/angular/
+        remote_src: yes
+        owner: www-data
+        group: www-data
+        mode: preserve
+      notify: Reiniciar Nginx
+
+    - name: Configurar site Angular no Nginx
+      ansible.builtin.copy:
+        dest: /etc/nginx/sites-available/angular
+        mode: "0644"
+        content: |
+          server {
+              listen 80 default_server;
+              server_name _;
+
+              root /var/www/angular;
+              index index.html;
+
+              location / {
+                  try_files $uri $uri/ /index.html;
+              }
+          }
+      notify: Reiniciar Nginx
+
+    - name: Ativar site Angular
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/angular
+        dest: /etc/nginx/sites-enabled/angular
+        state: link
+      notify: Reiniciar Nginx
+
+    - name: Remover site padrão do Nginx
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Reiniciar Nginx
+
+    - name: Validar configuração Nginx
+      ansible.builtin.command:
+        cmd: nginx -t
+      changed_when: false
+
+    - name: Reiniciar Nginx
+      ansible.builtin.systemd:
+        name: nginx
+        enabled: yes
+        state: restarted
+
+  handlers:
+    - name: Reiniciar Nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: restarted
