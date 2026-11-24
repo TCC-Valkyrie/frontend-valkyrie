@@ -432,6 +432,57 @@ export class AppComponent implements OnInit, OnDestroy {
     return `${(value / this.maxChartValue) * 100}%`;
   }
 
+  /*
+   * Faixas de acurácia (escala 0–100), usando só o limite inferior:
+   * < 30 BAIXA_EVIDENCIA | 30–49 BAIXA_SUSPEITA | 50–69 MODERADA_SUSPEITA
+   * 70–89 ALTA_SUSPEITA  | >= 90 MUITO_ALTA_SUSPEITA
+   */
+  getAccuracyLevel(): { label: string; caption: string; alert: boolean } {
+    const value = this.accuracy;
+
+    if (value >= 90) {
+      return {
+        label: 'Suspeita muito alta',
+        caption:
+          'A análise encontrou fortes indícios de ocorrência no quadro enviado. Recomenda-se verificação imediata.',
+        alert: true,
+      };
+    }
+
+    if (value >= 70) {
+      return {
+        label: 'Suspeita alta',
+        caption:
+          'A análise identificou sinais consistentes de uma possível ocorrência no quadro enviado.',
+        alert: true,
+      };
+    }
+
+    if (value >= 50) {
+      return {
+        label: 'Suspeita moderada',
+        caption:
+          'A análise encontrou alguns sinais que podem indicar uma ocorrência. Vale revisar a imagem.',
+        alert: false,
+      };
+    }
+
+    if (value >= 30) {
+      return {
+        label: 'Suspeita baixa',
+        caption:
+          'A análise encontrou poucos sinais de ocorrência no quadro enviado, sem evidência clara.',
+        alert: false,
+      };
+    }
+
+    return {
+      label: 'Baixa evidência',
+      caption: 'A análise não encontrou evidências de ocorrência no quadro enviado.',
+      alert: false,
+    };
+  }
+
   getAccuracy(): string {
     return (this.accuracy).toFixed(2) + '%';
   }

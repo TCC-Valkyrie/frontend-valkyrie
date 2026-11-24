@@ -209,10 +209,14 @@
 
             <!-- BADGE -->
 
-            <span class="result-badge" [class.alert]="detected" [class.clear]="!detected">
+            <span
+              class="result-badge"
+              [class.alert]="getAccuracyLevel().alert"
+              [class.clear]="!getAccuracyLevel().alert"
+            >
               <span class="dot-badge"></span>
 
-              {{ detected ? 'Ocorrência detectada' : 'Nenhuma ocorrência detectada' }}
+              {{ getAccuracyLevel().label }}
             </span>
           </div>
 
@@ -222,11 +226,7 @@
             <!-- DESCRIÇÃO -->
 
             <p class="result-caption">
-              {{
-                detected
-                  ? 'A análise identificou uma possível ocorrência no quadro enviado.'
-                  : 'A análise não identificou uma ocorrência no quadro enviado.'
-              }}
+              {{ getAccuracyLevel().caption }}
             </p>
 
             <!-- ACCURACY -->
